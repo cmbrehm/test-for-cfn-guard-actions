@@ -28,10 +28,10 @@ jobs:
     container:
       image: public.ecr.aws/aws-cloudformation/cloudformation-guard:3.0.3
       volumes:
-        - $GITHUB_WORKSPACE:/workspace
+        - ${{ GITHUB_WORKSPACE }}:/workspace
       options: --cpus 1
     steps:
       - name: Check for dockerenv file
-        run: (./cfn-guard validate -d /workspace/cfn/template.yml -r /workspace/guard-files/rule.guard)
+        run: (cfn-guard validate -d /workspace/cfn/template.yml -r /workspace/guard-files/rule.guard)
     
           
