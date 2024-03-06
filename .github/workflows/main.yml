@@ -22,6 +22,8 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - name: checkout
         uses: actions/checkout@v4
+      - name: list files
+        run: ls ${{ github.workspace }}
   cfn-guard:
     needs: checkout
     runs-on: ubuntu-latest
