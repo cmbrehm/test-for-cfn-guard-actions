@@ -32,6 +32,6 @@ jobs:
       options: --cpus 1
     steps:
       - name: Check for dockerenv file
-        run: (/usr/src/cloudformation-guard/cfn-guard validate -d /workspace/cfn/template.yml -r /workspace/guard-files/rule.guard)
+        run: (/usr/src/cloudformation-guard/cfn-guard validate -d /workspace/cfn -r /workspace/guard-files)
     
           
