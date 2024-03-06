@@ -15,17 +15,7 @@ on:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  checkout:
-    runs-on: ubuntu-latest
-
-    steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - name: checkout
-        uses: actions/checkout@v4
-      - name: list files
-        run: ls ${{ github.workspace }}
   cfn-guard:
-    needs: checkout
     runs-on: ubuntu-latest
     container:
       image: public.ecr.aws/aws-cloudformation/cloudformation-guard:3.0.3
@@ -36,6 +26,6 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
       - name: Check for dockerenv file
-        run: (/usr/src/cloudformation-guard/cfn-guard validate -d /workspace/cfn -r /workspace/guard-files)
+        run: (/usr/src/cloudformation-guard/cfn-guard validate -d /workspace/cfn -r /workspace/guard-rules)
     
           
