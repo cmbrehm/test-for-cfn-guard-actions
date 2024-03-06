@@ -1,0 +1,174 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  AuroraRDSVPC:
+    Type: AWS::EC2::VPC::Id
+
+Resources:
+
+  MyS3Bucket:
+    Type: AWS::S3::Bucket
+
+  MyDynamoDBTable: 
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions: 
+        - AttributeName: Id
+          AttributeType: S
+      KeySchema: 
+        - AttributeName: Id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+
+  MyKinesisStream:
+    Type: AWS::Kinesis::Stream
+    Properties: 
+      ShardCount: 1
+
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            return "Hello World!"
+          }
+      Handler: index.handler
+      Runtime: nodejs18.x
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: Allow
+            Principal: 
+              Service: 
+              - lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies: 
+        - PolicyName: root
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement: 
+              - Effect: Allow
+                Action: 
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "arn:aws:logs:*:*:*"
+
+# Aurora RDS Cluster
+  AuroraRDSCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      Engine: aurora
+      EngineMode: serverless
+      DatabaseName: mydb
+      MasterUsername: admin
+      MasterUserPassword: "admin123"
+      ScalingConfiguration:
+        AutoPause: true
+        MaxCapacity: 2
+        MinCapacity: 1
+        SecondsUntilAutoPause: 300
+      DBSubnetGroupName: !Ref AuroraRDSSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref AuroraRDSVPCSecurityGroup
+
+  AuroraRDSSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: "Aurora RDS Subnet Group"
+      SubnetIds:
+        - !Ref AuroraRDSSubnet1
+        - !Ref AuroraRDSSubnet2
+
+  AuroraRDSSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.1.0/24
+      VpcId: !Ref AuroraRDSVPC
+      AvailabilityZone: !Select 
+        - 0
+        - Fn::GetAZs: !Ref 'AWS::Region'
+
+  AuroraRDSSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.2.0/24
+      VpcId: !Ref AuroraRDSVPC
+      AvailabilityZone: !Select 
+        - 1
+        - Fn::GetAZs: !Ref 'AWS::Region'
+
+  AuroraRDSVPCSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Aurora RDS VPC Security Group"
+      VpcId: !Ref AuroraRDSVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+          Description: "Allow incoming traffic from Lambda"
+
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Lambda Security Group"
+      VpcId: !Ref AuroraRDSVPC
+
+# API Gateway
+  MyAPI:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: MyAPI
+
+  MyAPIResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt MyAPI.RootResourceId
+      PathPart: "myresource"
+      RestApiId: !Ref MyAPI
+
+  MyAPIMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: GET
+      Integration:
+        IntegrationHttpMethod: GET
+        Type: AWS_PROXY
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunction.Arn}/invocations"
+      ResourceId: !Ref MyAPIResource
+      RestApiId: !Ref MyAPI
+
+  MyAPIDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - MyAPIMethod
+    Properties:
+      RestApiId: !Ref MyAPI
+      StageName: "v1"
+
+      
+Outputs:
+
+  S3BucketName:
+    Value: !Ref MyS3Bucket
+    Description: Name of the S3 bucket
+
+  DynamoDBTableName: 
+    Value: !Ref MyDynamoDBTable
+    Description: Name of the DynamoDB table
+
+  KinesisStreamName:
+    Value: !Ref MyKinesisStream 
+    Description: Name of the Kinesis data stream
+
